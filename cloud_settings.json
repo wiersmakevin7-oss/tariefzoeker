@@ -2,12 +2,12 @@
   "diesel_by_carrier": {
     "Drost": 0.0,
     "Van Heugten Transport": 11.0,
-    "XPO Logistics Netherlands B.V.": 0.0
+    "XPO Logistics Netherlands B.V.": 24.1
   },
   "road_charge_by_carrier": {
     "Drost": 0.0,
     "Van Heugten Transport": 0.0,
-    "XPO Logistics Netherlands B.V.": 0.0
+    "XPO Logistics Netherlands B.V.": 2.9
   },
   "margin_pct": 0.0
 }
