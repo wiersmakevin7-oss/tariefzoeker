@@ -47,6 +47,9 @@ Zet daarna in Streamlit Community Cloud bij **App settings > Secrets**:
 
 ```toml
 GITHUB_TOKEN = "jouw_github_token"
+APP_PASSWORD = "kies_een_veilig_wachtwoord"
 ```
 
 Zonder deze secret werkt de app nog steeds, maar opgeslagen toeslagen zijn dan alleen lokaal/per sessie betrouwbaar.
+
+`APP_PASSWORD` is optioneel. Als je deze secret invult, toont de app eerst een login-scherm. Laat je hem leeg, dan is de app zonder login bereikbaar.

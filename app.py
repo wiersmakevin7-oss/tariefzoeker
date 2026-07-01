@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 import base64
+import hmac
 import json
 import math
 import re
@@ -539,6 +540,32 @@ def total_purchase(base_price: float, diesel_pct: float, road_tax_pct: float) ->
     return total_with_diesel(base_price, diesel_pct) + road_tax_amount(base_price, road_tax_pct)
 
 
+def app_password() -> str:
+    try:
+        return str(st.secrets.get("APP_PASSWORD", "")).strip()
+    except Exception:
+        return ""
+
+
+def require_login() -> None:
+    password = app_password()
+    if not password:
+        return
+    if st.session_state.get("authenticated"):
+        return
+
+    st.title("TFF tariefzoeker")
+    st.caption("Log in om de tariefzoeker te gebruiken.")
+    entered_password = st.text_input("Wachtwoord", type="password")
+    if st.button("Inloggen", type="primary"):
+        if hmac.compare_digest(entered_password, password):
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("Wachtwoord klopt niet.")
+    st.stop()
+
+
 def normalize_settings(data: dict[str, Any] | None) -> dict[str, Any]:
     data = data or {}
     return {
@@ -658,6 +685,7 @@ def save_settings(
 
 
 st.set_page_config(page_title="TFF tariefzoeker", page_icon="EUR", layout="wide")
+require_login()
 st.title("TFF tariefzoeker")
 st.caption("Vul eerst de levering en de zending in. De TFF/XPO-staffel wordt standaard op de achtergrond geladen.")
 settings = load_settings()
