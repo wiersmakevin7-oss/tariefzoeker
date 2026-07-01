@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
+import base64
 import json
 import math
 import re
@@ -11,6 +12,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 import openpyxl
+import requests
 import streamlit as st
 
 
@@ -22,6 +24,10 @@ VAN_HEUGTEN_FR_WORKBOOK = DATA_DIR / "Tarieven Calculator per 01-07-2026 Van Heu
 DROST_WORKBOOK = DATA_DIR / "Export Drost offerte 2026-1 (1).xlsx"
 DEFAULT_WORKBOOKS = [DEFAULT_WORKBOOK, VAN_HEUGTEN_WORKBOOK, VAN_HEUGTEN_FR_WORKBOOK, DROST_WORKBOOK]
 SETTINGS_FILE = APP_DIR / "settings.json"
+GITHUB_SETTINGS_PATH = "cloud_settings.json"
+GITHUB_REPO = "wiersmakevin7-oss/tariefzoeker"
+GITHUB_BRANCH = "main"
+DEFAULT_SETTINGS = {"diesel_by_carrier": {}, "road_charge_by_carrier": {}, "margin_pct": 0.0}
 SKIP_SHEETS = {"Voorblad", "Algemene Voorwaarden", "Toeslagen en condities", "Contacts"}
 
 
@@ -533,14 +539,8 @@ def total_purchase(base_price: float, diesel_pct: float, road_tax_pct: float) ->
     return total_with_diesel(base_price, diesel_pct) + road_tax_amount(base_price, road_tax_pct)
 
 
-def load_settings() -> dict[str, Any]:
-    if not SETTINGS_FILE.exists():
-        return {"diesel_by_carrier": {}, "road_charge_by_carrier": {}, "margin_pct": 0.0}
-    try:
-        with SETTINGS_FILE.open("r", encoding="utf-8") as file:
-            data = json.load(file)
-    except (OSError, json.JSONDecodeError):
-        return {"diesel_by_carrier": {}, "road_charge_by_carrier": {}, "margin_pct": 0.0}
+def normalize_settings(data: dict[str, Any] | None) -> dict[str, Any]:
+    data = data or {}
     return {
         "diesel_by_carrier": data.get("diesel_by_carrier", {}),
         "road_charge_by_carrier": data.get("road_charge_by_carrier", {}),
@@ -548,11 +548,100 @@ def load_settings() -> dict[str, Any]:
     }
 
 
-def save_settings(
+def github_token() -> str:
+    try:
+        return str(st.secrets.get("GITHUB_TOKEN", "")).strip()
+    except Exception:
+        return ""
+
+
+def github_settings_url() -> str:
+    return f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_SETTINGS_PATH}"
+
+
+def github_headers(token: str) -> dict[str, str]:
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def load_github_settings(token: str) -> dict[str, Any]:
+    response = requests.get(
+        github_settings_url(),
+        headers=github_headers(token),
+        params={"ref": GITHUB_BRANCH},
+        timeout=15,
+    )
+    if response.status_code == 404:
+        return normalize_settings(DEFAULT_SETTINGS)
+    response.raise_for_status()
+    payload = response.json()
+    raw = base64.b64decode(payload["content"]).decode("utf-8")
+    return normalize_settings(json.loads(raw))
+
+
+def save_github_settings(
+    token: str,
     diesel_by_carrier: dict[str, float],
     road_charge_by_carrier: dict[str, float],
     margin_pct: float,
 ) -> None:
+    settings_payload = json.dumps(
+        {
+            "diesel_by_carrier": diesel_by_carrier,
+            "road_charge_by_carrier": road_charge_by_carrier,
+            "margin_pct": margin_pct,
+        },
+        indent=2,
+        ensure_ascii=False,
+    )
+    current = requests.get(
+        github_settings_url(),
+        headers=github_headers(token),
+        params={"ref": GITHUB_BRANCH},
+        timeout=15,
+    )
+    body: dict[str, Any] = {
+        "message": "Update tariefzoeker cloud settings",
+        "content": base64.b64encode(settings_payload.encode("utf-8")).decode("ascii"),
+        "branch": GITHUB_BRANCH,
+    }
+    if current.status_code == 200:
+        body["sha"] = current.json()["sha"]
+    elif current.status_code != 404:
+        current.raise_for_status()
+    response = requests.put(github_settings_url(), headers=github_headers(token), json=body, timeout=15)
+    response.raise_for_status()
+
+
+def load_settings() -> dict[str, Any]:
+    token = github_token()
+    if token:
+        try:
+            return load_github_settings(token)
+        except (requests.RequestException, json.JSONDecodeError, KeyError, UnicodeDecodeError) as exc:
+            st.warning(f"Cloud-instellingen konden niet worden geladen, lokale instellingen worden gebruikt: {exc}")
+    if not SETTINGS_FILE.exists():
+        return normalize_settings(DEFAULT_SETTINGS)
+    try:
+        with SETTINGS_FILE.open("r", encoding="utf-8") as file:
+            data = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return normalize_settings(DEFAULT_SETTINGS)
+    return normalize_settings(data)
+
+
+def save_settings(
+    diesel_by_carrier: dict[str, float],
+    road_charge_by_carrier: dict[str, float],
+    margin_pct: float,
+) -> str:
+    token = github_token()
+    if token:
+        save_github_settings(token, diesel_by_carrier, road_charge_by_carrier, margin_pct)
+        return "Opgeslagen in GitHub cloud settings."
     SETTINGS_FILE.write_text(
         json.dumps(
             {
@@ -565,6 +654,7 @@ def save_settings(
         ),
         encoding="utf-8",
     )
+    return "Lokaal opgeslagen in settings.json."
 
 
 st.set_page_config(page_title="TFF tariefzoeker", page_icon="EUR", layout="wide")
@@ -687,8 +777,11 @@ with diesel_tab:
                 key=f"road_charge_{carrier}",
             )
         if st.button("Toeslagen opslaan", type="primary"):
-            save_settings(diesel_by_carrier, road_charge_by_carrier, margin_pct)
-            st.success("Opgeslagen. Deze toeslagen worden bij de volgende refresh of herstart opnieuw geladen.")
+            try:
+                save_message = save_settings(diesel_by_carrier, road_charge_by_carrier, margin_pct)
+                st.success(f"{save_message} Deze toeslagen worden bij de volgende refresh of herstart opnieuw geladen.")
+            except requests.RequestException as exc:
+                st.error(f"Opslaan in GitHub is niet gelukt: {exc}")
     else:
         st.info("Nog geen vervoerders geladen.")
 
