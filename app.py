@@ -15,6 +15,7 @@ import zipfile
 import openpyxl
 import requests
 import streamlit as st
+from batch_quotes import render_batch_ui
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -783,7 +784,7 @@ diesel_by_carrier = {carrier: float(as_number(saved_diesel_by_carrier.get(carrie
 road_charge_by_carrier = {
     carrier: float(as_number(saved_road_charge_by_carrier.get(carrier)) or 0.0) for carrier in carrier_names
 }
-result_tab, diesel_tab = st.tabs(["Resultaat", "Toeslagen per vervoerder"])
+result_tab, diesel_tab, batch_tab = st.tabs(["Resultaat", "Toeslagen per vervoerder", "Excel-zendingen"])
 with diesel_tab:
     if carrier_names:
         st.caption("Vul per vervoerder dieselpercentage en road tax in. Road tax wordt als percentage over het basistarief berekend.")
@@ -812,6 +813,9 @@ with diesel_tab:
                 st.error(f"Opslaan in GitHub is niet gelukt: {exc}")
     else:
         st.info("Nog geen vervoerders geladen.")
+
+with batch_tab:
+    render_batch_ui(st, rates, diesel_by_carrier, road_charge_by_carrier, margin_pct, find_rates, countries)
 
 zone, results = (None, [])
 if rates:
