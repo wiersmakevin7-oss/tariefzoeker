@@ -61,12 +61,10 @@ def enrich_workbook(raw, sheet, columns, country, pallet_type, rates, diesel, ro
     # Unknown pallet types cannot safely use pallet-count-specific brackets.
     eligible = rates if pallet_type != 'Onbekend' else [
         r for r in rates if r.max_eu_pallets is None and r.max_block_pallets is None]
-    fields = ['Totale inkoop EUR']
+    headers = ['Vervoerder', 'Totale inkoop EUR']
     if include_margin:
-        fields += ['Verkoop EUR']
+        headers += ['Verkoop EUR']
     start = ws.max_column + 1
-    headers = [
-        f'{carrier} - {field}' for carrier in carriers for field in fields]
     for col, header in enumerate(headers, start):
         cell = ws.cell(1,col,header)
         cell.font = Font(bold=True,color='FFFFFF')
@@ -92,17 +90,19 @@ def enrich_workbook(raw, sheet, columns, country, pallet_type, rates, diesel, ro
         except ValueError as exc:
             error = str(exc)
         counts['ongeldig' if error else 'met_tarief' if matches else 'zonder_tarief'] += 1
-        for carrier in carriers:
-            rate = matches.get(carrier)
-            if error or rate is None:
-                output += [('Ongeldige invoer: '+error) if error else 'Geen tarief'] * len(fields)
-                continue
+        offers = []
+        for carrier, rate in matches.items():
             base = Decimal(str(rate.base_price))
             fuel_pct = Decimal(str(diesel.get(carrier,0)))
             road_pct = Decimal(str(road.get(carrier,0)))
             fuel_amount, road_amount = base*fuel_pct/100, base*road_pct/100
             purchase = base+fuel_amount+road_amount
-            output += [money(purchase)]
+            offers.append((purchase,carrier))
+        if error or not offers:
+            output = [('Ongeldige invoer: '+error) if error else 'Geen tarief'] + [None]*(len(headers)-1)
+        else:
+            purchase, carrier = min(offers)
+            output = [carrier,money(purchase)]
             if include_margin:
                 profit = purchase*Decimal(str(margin))/100
                 output += [money(purchase+profit)]
@@ -203,8 +203,8 @@ def render_batch_ui(st, rates, diesel, road, margin, find_rates, countries):
         if len(set(columns.values()))!=4:
             st.error('Selecteer voor elk invoerveld een aparte kolom.')
             return
-        fingerprint = hashlib.sha256(b'compact-v2'+raw+repr(rates).encode()+json.dumps([sheet,columns,country,pallet_type,diesel,road,margin,include_margin,include_scale,kg_each],sort_keys=True).encode()).hexdigest()
-        if st.button('Tarieven per vervoerder berekenen',disabled=not rates or (include_scale and kg_each<=0),key='batch_calculate'):
+        fingerprint = hashlib.sha256(b'best-v3'+raw+repr(rates).encode()+json.dumps([sheet,columns,country,pallet_type,diesel,road,margin,include_margin,include_scale,kg_each],sort_keys=True).encode()).hexdigest()
+        if st.button('Beste tarieven berekenen',disabled=not rates or (include_scale and kg_each<=0),key='batch_calculate'):
             with st.spinner('Zendingen berekenen...'):
                 result = enrich_workbook(raw,sheet,columns,country,pallet_type,rates,diesel,road,margin,include_margin,find_rates)
                 if include_scale:

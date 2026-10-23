@@ -22,12 +22,13 @@ totaalgewicht in kg, totale laadmeters en aantal pallets. Iedere rij is een
 zelfstandige zending; regels worden niet op datum of postcode samengevoegd.
 De upload blijft in het geheugen en wordt niet op GitHub gepubliceerd.
 
-Het resultaat behoudt bestaande cellen en werkbladen en voegt per vervoerder
-alleen totale inkoop inclusief fuel en roadtax toe. Optioneel wordt een
+Het resultaat behoudt bestaande cellen en werkbladen en voegt alleen de beste
+vervoerder en laagste totale inkoop inclusief fuel en roadtax toe. De selectie
+gebeurt op ongeronde totale inkoop, niet op basistarief. Optioneel wordt een
 verkoopkolom inclusief de ingestelde marge toegevoegd; marge is opslag over
 inkoop inclusief toeslagen. Vervoerders zonder staffel voor het gekozen land
 worden weggelaten, ook op het palletstaffelblad.
-Geen passende staffel geeft Geen tarief in de prijscel, niet een nulprijs.
+Geen passende staffel geeft Geen tarief bij Vervoerder en lege prijscellen.
 Ongeldige invoer wordt per regel vermeld zonder de overige regels te stoppen.
 
 Bij onbekende palletsoort worden pallet-aantalgebonden staffels uitgesloten;
@@ -43,7 +44,7 @@ Optie Staffel voor 1-4 europallets toevoegen maakt een apart werkblad met
 vier scenario's per unieke postcode. Voer verplicht een gewicht per europallet
 in; het tariefgewicht is aantal maal dit gewicht, de laadmeters zijn aantal
 maal 0,4. Dit zijn scenario's, geen afleiding van historische palletgewichten.
-Ook dit blad bevat alle vervoerders en optioneel de ingestelde marge.
+Ook dit blad bevat alleen de beste vervoerder en optioneel de ingestelde marge.
 
 ## Prijsformule
 

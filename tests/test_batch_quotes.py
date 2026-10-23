@@ -67,28 +67,29 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(ws['A2'].value,'01234')
         self.assertEqual(counts,{'regels':5,'met_tarief':3,'zonder_tarief':1,'ongeldig':1})
         row=preview[0]
-        self.assertEqual(ws.max_column,9)
-        self.assertEqual(row['XPO - Totale inkoop EUR'],131.4)
-        self.assertEqual(row['XPO - Verkoop EUR'],144.54)
-        self.assertEqual(row['Van Heugten - Totale inkoop EUR'],120)
+        self.assertEqual(ws.max_column,8)
+        self.assertEqual(row['Vervoerder'],'Van Heugten')
+        self.assertEqual(row['Totale inkoop EUR'],120)
+        self.assertEqual(row['Verkoop EUR'],132)
         self.assertFalse(any('Drost' in key for key in row))
-        self.assertEqual(preview[1]['XPO - Totale inkoop EUR'],197.1)
-        self.assertTrue(preview[2]['XPO - Totale inkoop EUR'].startswith('Ongeldige invoer'))
-        self.assertEqual(preview[3]['XPO - Totale inkoop EUR'],'Geen tarief')
-        self.assertEqual(preview[4]['XPO - Totale inkoop EUR'],131.4)
+        self.assertEqual(preview[1]['Totale inkoop EUR'],120)
+        self.assertTrue(preview[2]['Vervoerder'].startswith('Ongeldige invoer'))
+        self.assertEqual(preview[3]['Vervoerder'],'Geen tarief')
+        self.assertIsNone(preview[3]['Totale inkoop EUR'])
+        self.assertEqual(preview[4]['Totale inkoop EUR'],120)
 
     def test_margin_optional(self):
         _,preview,_=self.run_batch(False)
-        self.assertNotIn('XPO - Verkoop EUR',preview[0])
-        self.assertEqual(preview[0]['XPO - Totale inkoop EUR'],131.4)
+        self.assertNotIn('Verkoop EUR',preview[0])
+        self.assertEqual(preview[0]['Totale inkoop EUR'],120)
 
     def test_unknown_pallets_skip_count_brackets(self):
         R=self.engine.RateRow
         rates=[R('FR','FR',1000,1,1,None,100,None,'XPO','test.xlsx')]
         _,preview,_=self.run_batch(rates=rates)
-        self.assertEqual(preview[0]['XPO - Totale inkoop EUR'],'Geen tarief')
+        self.assertEqual(preview[0]['Vervoerder'],'Geen tarief')
         _,preview,_=self.run_batch(kind='Europallet',rates=rates)
-        self.assertEqual(preview[0]['XPO - Totale inkoop EUR'],131.4)
+        self.assertEqual(preview[0]['Totale inkoop EUR'],131.4)
 
     def test_numbers(self):
         self.assertEqual(numeric('1.400,50'),1400.5)
@@ -113,8 +114,9 @@ class BatchTest(unittest.TestCase):
             self.assertEqual(row[4],round(qty*0.4,2))
         headers=[cell.value for cell in sheet[1]]
         self.assertFalse(any('Drost' in header for header in headers))
-        self.assertEqual(sheet.max_column,8)
-        self.assertEqual(sheet.cell(5,headers.index('XPO - Totale inkoop EUR')+1).value,460)
-        self.assertEqual(sheet.cell(5,headers.index('XPO - Verkoop EUR')+1).value,552)
+        self.assertEqual(sheet.max_column,9)
+        self.assertEqual(sheet.cell(5,headers.index('Vervoerder')+1).value,'XPO')
+        self.assertEqual(sheet.cell(5,headers.index('Totale inkoop EUR')+1).value,460)
+        self.assertEqual(sheet.cell(5,headers.index('Verkoop EUR')+1).value,552)
         with self.assertRaises(ValueError):
             add_pallet_scale(self.workbook(),'Shipments',1,'FR',0,rates,{}, {},0,False,self.engine.find_rates)
