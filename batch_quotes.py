@@ -53,17 +53,19 @@ def enrich_workbook(raw, sheet, columns, country, pallet_type, rates, diesel, ro
     ws, source = book[sheet], values[sheet]
     if source.max_row > 5001:
         raise ValueError('Maximaal 5.000 zendingregels per bestand.')
+    country = country.upper()
+    rates = [r for r in rates if r.country.upper() == country]
     carriers = sorted({r.carrier for r in rates})
+    if not carriers:
+        raise ValueError('Geen vervoerders met een staffel voor het geselecteerde land.')
     # Unknown pallet types cannot safely use pallet-count-specific brackets.
     eligible = rates if pallet_type != 'Onbekend' else [
         r for r in rates if r.max_eu_pallets is None and r.max_block_pallets is None]
-    fields = ['Status','Zone','Basistarief EUR','Fuel %','Fuel EUR','Roadtax %',
-              'Roadtax EUR','Totale inkoop EUR']
+    fields = ['Totale inkoop EUR']
     if include_margin:
-        fields += ['Marge %','Marge EUR','Verkoop EUR']
-    fields += ['Tariefbron']
+        fields += ['Verkoop EUR']
     start = ws.max_column + 1
-    headers = ['Tariefzoeker - Land', 'Tariefzoeker - Palletsoort'] + [
+    headers = [
         f'{carrier} - {field}' for carrier in carriers for field in fields]
     for col, header in enumerate(headers, start):
         cell = ws.cell(1,col,header)
@@ -77,7 +79,7 @@ def enrich_workbook(raw, sheet, columns, country, pallet_type, rates, diesel, ro
         if all(source.cell(row,c).value is None for c in range(1,start)):
             continue
         counts['regels'] += 1
-        output, matches, error = [country,pallet_type], {}, None
+        output, matches, error = [], {}, None
         try:
             postcode = normalize_postcode(source.cell(row,columns['postcode']).value,country)
             kg, ldm, pallets = (numeric(source.cell(row,columns[k]).value) for k in ('kg','ldm','pallets'))
@@ -93,19 +95,17 @@ def enrich_workbook(raw, sheet, columns, country, pallet_type, rates, diesel, ro
         for carrier in carriers:
             rate = matches.get(carrier)
             if error or rate is None:
-                output += [('Ongeldige invoer: '+error) if error else 'Geen tarief'] + [None]*(len(fields)-1)
+                output += [('Ongeldige invoer: '+error) if error else 'Geen tarief'] * len(fields)
                 continue
             base = Decimal(str(rate.base_price))
             fuel_pct = Decimal(str(diesel.get(carrier,0)))
             road_pct = Decimal(str(road.get(carrier,0)))
             fuel_amount, road_amount = base*fuel_pct/100, base*road_pct/100
             purchase = base+fuel_amount+road_amount
-            output += ['OK',rate.zone,money(base),float(fuel_pct)/100,money(fuel_amount),
-                       float(road_pct)/100,money(road_amount),money(purchase)]
+            output += [money(purchase)]
             if include_margin:
                 profit = purchase*Decimal(str(margin))/100
-                output += [margin/100,money(profit),money(purchase+profit)]
-            output += [rate.source]
+                output += [money(purchase+profit)]
         for col, value in enumerate(output,start):
             cell = ws.cell(row,col,value)
             if headers[col-start].endswith('%'):
@@ -203,7 +203,7 @@ def render_batch_ui(st, rates, diesel, road, margin, find_rates, countries):
         if len(set(columns.values()))!=4:
             st.error('Selecteer voor elk invoerveld een aparte kolom.')
             return
-        fingerprint = hashlib.sha256(raw+repr(rates).encode()+json.dumps([sheet,columns,country,pallet_type,diesel,road,margin,include_margin,include_scale,kg_each],sort_keys=True).encode()).hexdigest()
+        fingerprint = hashlib.sha256(b'compact-v2'+raw+repr(rates).encode()+json.dumps([sheet,columns,country,pallet_type,diesel,road,margin,include_margin,include_scale,kg_each],sort_keys=True).encode()).hexdigest()
         if st.button('Tarieven per vervoerder berekenen',disabled=not rates or (include_scale and kg_each<=0),key='batch_calculate'):
             with st.spinner('Zendingen berekenen...'):
                 result = enrich_workbook(raw,sheet,columns,country,pallet_type,rates,diesel,road,margin,include_margin,find_rates)

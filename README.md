@@ -23,10 +23,11 @@ zelfstandige zending; regels worden niet op datum of postcode samengevoegd.
 De upload blijft in het geheugen en wordt niet op GitHub gepubliceerd.
 
 Het resultaat behoudt bestaande cellen en werkbladen en voegt per vervoerder
-status, zone, basistarief, fuelpercentage/-bedrag, roadtaxpercentage/-bedrag,
-totale inkoop en tariefbron toe. Optioneel worden de ingestelde marge en
-verkoopprijs toegevoegd; marge is opslag over inkoop inclusief toeslagen.
-Geen passende staffel geeft Geen tarief met lege bedragen, niet een nulprijs.
+alleen totale inkoop inclusief fuel en roadtax toe. Optioneel wordt een
+verkoopkolom inclusief de ingestelde marge toegevoegd; marge is opslag over
+inkoop inclusief toeslagen. Vervoerders zonder staffel voor het gekozen land
+worden weggelaten, ook op het palletstaffelblad.
+Geen passende staffel geeft Geen tarief in de prijscel, niet een nulprijs.
 Ongeldige invoer wordt per regel vermeld zonder de overige regels te stoppen.
 
 Bij onbekende palletsoort worden pallet-aantalgebonden staffels uitgesloten;

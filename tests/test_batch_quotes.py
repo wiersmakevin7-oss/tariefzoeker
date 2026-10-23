@@ -67,17 +67,15 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(ws['A2'].value,'01234')
         self.assertEqual(counts,{'regels':5,'met_tarief':3,'zonder_tarief':1,'ongeldig':1})
         row=preview[0]
-        self.assertEqual(row['XPO - Fuel EUR'],26.4)
-        self.assertEqual(row['XPO - Roadtax EUR'],5)
+        self.assertEqual(ws.max_column,9)
         self.assertEqual(row['XPO - Totale inkoop EUR'],131.4)
         self.assertEqual(row['XPO - Verkoop EUR'],144.54)
         self.assertEqual(row['Van Heugten - Totale inkoop EUR'],120)
-        self.assertEqual(row['Drost - Status'],'Geen tarief')
-        self.assertIsNone(row['Drost - Totale inkoop EUR'])
-        self.assertEqual(preview[1]['XPO - Basistarief EUR'],150)
-        self.assertTrue(preview[2]['XPO - Status'].startswith('Ongeldige invoer'))
-        self.assertEqual(preview[3]['XPO - Status'],'Geen tarief')
-        self.assertEqual(preview[4]['XPO - Status'],'OK')
+        self.assertFalse(any('Drost' in key for key in row))
+        self.assertEqual(preview[1]['XPO - Totale inkoop EUR'],197.1)
+        self.assertTrue(preview[2]['XPO - Totale inkoop EUR'].startswith('Ongeldige invoer'))
+        self.assertEqual(preview[3]['XPO - Totale inkoop EUR'],'Geen tarief')
+        self.assertEqual(preview[4]['XPO - Totale inkoop EUR'],131.4)
 
     def test_margin_optional(self):
         _,preview,_=self.run_batch(False)
@@ -88,9 +86,9 @@ class BatchTest(unittest.TestCase):
         R=self.engine.RateRow
         rates=[R('FR','FR',1000,1,1,None,100,None,'XPO','test.xlsx')]
         _,preview,_=self.run_batch(rates=rates)
-        self.assertEqual(preview[0]['XPO - Status'],'Geen tarief')
+        self.assertEqual(preview[0]['XPO - Totale inkoop EUR'],'Geen tarief')
         _,preview,_=self.run_batch(kind='Europallet',rates=rates)
-        self.assertEqual(preview[0]['XPO - Status'],'OK')
+        self.assertEqual(preview[0]['XPO - Totale inkoop EUR'],131.4)
 
     def test_numbers(self):
         self.assertEqual(numeric('1.400,50'),1400.5)
@@ -101,6 +99,7 @@ class BatchTest(unittest.TestCase):
     def test_scale_destinations_and_quantities(self):
         R=self.engine.RateRow
         rates=[R('FR','FR',qty*300,round(qty*0.4,2),qty,None,qty*100,None,'XPO','source') for qty in range(1,5)]
+        rates.append(R('AT','6',1000,1,None,None,50,None,'Drost','source'))
         output,counts=add_pallet_scale(self.workbook(),'Shipments',1,'FR',300,rates,{'XPO':10},{'XPO':5},20,True,self.engine.find_rates)
         book=openpyxl.load_workbook(BytesIO(output))
         self.assertEqual(book['Shipments']['E2'].value,'=1+1')
@@ -113,6 +112,8 @@ class BatchTest(unittest.TestCase):
             self.assertEqual(row[3],qty*300)
             self.assertEqual(row[4],round(qty*0.4,2))
         headers=[cell.value for cell in sheet[1]]
+        self.assertFalse(any('Drost' in header for header in headers))
+        self.assertEqual(sheet.max_column,8)
         self.assertEqual(sheet.cell(5,headers.index('XPO - Totale inkoop EUR')+1).value,460)
         self.assertEqual(sheet.cell(5,headers.index('XPO - Verkoop EUR')+1).value,552)
         with self.assertRaises(ValueError):
