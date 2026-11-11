@@ -1,6 +1,5 @@
 ﻿from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -16,6 +15,7 @@ import openpyxl
 import requests
 import streamlit as st
 from batch_quotes import render_batch_ui
+from rate_models import RateRow
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -31,20 +31,6 @@ GITHUB_REPO = "wiersmakevin7-oss/tariefzoeker"
 GITHUB_BRANCH = "main"
 DEFAULT_SETTINGS = {"diesel_by_carrier": {}, "road_charge_by_carrier": {}, "margin_pct": 0.0}
 SKIP_SHEETS = {"Voorblad", "Algemene Voorwaarden", "Toeslagen en condities", "Contacts"}
-
-
-@dataclass(frozen=True)
-class RateRow:
-    country: str
-    zone: str
-    max_kg: float | None
-    max_ldm: float | None
-    max_eu_pallets: float | None
-    max_block_pallets: float | None
-    base_price: float
-    transit: str | None
-    carrier: str
-    source: str
 
 
 DEFAULT_COUNTRIES = [
@@ -402,11 +388,13 @@ def parse_van_heugten_workbook(path: Path) -> list[RateRow]:
 
 @st.cache_data(show_spinner=False)
 def load_default_rates(path_text: str) -> list[RateRow]:
+    """Cache rows using the stable rate_models type, not the rerun script."""
     return parse_workbook(Path(path_text))
 
 
 @st.cache_data(show_spinner=False)
 def load_default_rate_books(paths: tuple[str, ...]) -> list[RateRow]:
+    """Cache rows using the stable rate_models type, not the rerun script."""
     rows: list[RateRow] = []
     for path_text in paths:
         rows.extend(parse_workbook(Path(path_text)))
